@@ -845,15 +845,38 @@ Box* instanceSetitem(Box* _inst, Box* key, Box* value) {
     return runtimeCall(setitem_func, ArgPassSpec(2), key, value, NULL, NULL, NULL);
 }
 
-static int instance_ass_item(Box* self, Py_ssize_t i, Box* item) noexcept {
-    try {
-        Box* res = instanceSetitem(self, autoDecref(boxInt(i)), item);
-        autoDecref(res);
-        return 0;
-    } catch (ExcInfo e) {
-        setCAPIException(e);
-        return -1;
+static int instance_ass_item(Box* inst, Py_ssize_t k, PyObject* item) noexcept {
+    static BoxedString *delitem_str, *setitem_str;
+    Box* func = NULL, *res = NULL;
+    Box* key = boxInt(k);
+
+    AUTO_DECREF(key);
+
+    if (item == NULL) {
+        delitem_str = getStaticString("delitem_str");
+
+        func = instance_getattro(inst, delitem_str);
+        if (func == NULL)
+            return -1;
+
+        res = runtimeCallCapi(func, ArgPassSpec(1), key, NULL, NULL, NULL, NULL);
+    } else {
+        setitem_str =  getStaticString("__setitem__");
+
+        func = instance_getattro(inst, setitem_str);
+        if (func == NULL)
+            return -1;
+
+        res = runtimeCallCapi(func, ArgPassSpec(2), key, (Box*)item, NULL, NULL, NULL);
     }
+
+    AUTO_DECREF(func);
+
+    if (res == NULL)
+        return -1;
+
+    AUTO_DECREF(res);
+    return 0;
 }
 
 Box* instanceDelitem(Box* _inst, Box* key) {
@@ -924,17 +947,6 @@ Box* instanceSetslice(Box* _inst, Box* i, Box* j, Box** sequence) {
     return runtimeCall(setslice_func, ArgPassSpec(3), i, j, *sequence, NULL, NULL);
 }
 
-static int instance_ass_slice(Box* self, Py_ssize_t i, Py_ssize_t j, Box** sequence) noexcept {
-    try {
-        Box* res = instanceSetslice(self, autoDecref(boxInt(i)), autoDecref(boxInt(j)), sequence);
-        autoDecref(res);
-        return 0;
-    } catch (ExcInfo e) {
-        setCAPIException(e);
-        return -1;
-    }
-}
-
 Box* instanceDelslice(Box* _inst, Box* i, Box* j) {
     RELEASE_ASSERT(_inst->cls == instance_cls, "");
     BoxedInstance* inst = static_cast<BoxedInstance*>(_inst);
@@ -963,6 +975,79 @@ Box* instanceDelslice(Box* _inst, Box* i, Box* j) {
         return NULL;
     }
 }
+
+// Analoguous to CPython's, used for sq_slots.
+static int instance_ass_slice(Box* inst, Py_ssize_t i, Py_ssize_t j, PyObject* value) {
+    static BoxedString *delslice_str, *setslice_str, *delitem_str, *setitem_str;
+    Box* func = NULL, *res = NULL;
+    Box* slice = NULL;
+    Box* begin = boxInt(i);
+    Box* end = boxInt(j);
+
+    AUTO_DECREF(begin);
+    AUTO_DECREF(end);
+
+    if (value == NULL) {
+        delslice_str = getStaticString("__delslice__");
+        func = instance_getattro(inst, delslice_str);
+        if (func == NULL) {
+            if (!PyErr_ExceptionMatches(PyExc_AttributeError))
+                return -1;
+            PyErr_Clear();
+
+            delitem_str = getStaticString("delitem_str");
+            func = instance_getattro(inst, delitem_str);
+            if (func == NULL)
+                return -1;
+
+            slice = static_cast<Box*>(createSlice(begin, end, None));
+            AUTO_DECREF(slice);
+            res = runtimeCallCapi(func, ArgPassSpec(1), slice, NULL, NULL, NULL, NULL);
+        } else {
+            if (PyErr_WarnPy3k("in 3.x, __delslice__ has been removed; use __delitem__", 1) < 0) {
+                AUTO_DECREF(func);
+                return -1;
+            }
+            res = runtimeCallCapi(func, ArgPassSpec(2), begin, end, NULL, NULL, NULL);
+        }
+    } else {
+        setslice_str = getStaticString("__setslice__");
+        func = instance_getattro(inst, setslice_str);
+        if (func == NULL) {
+            if (!PyErr_ExceptionMatches(PyExc_AttributeError))
+                return -1;
+            PyErr_Clear();
+
+            setitem_str =  getStaticString("__setitem__");
+            func = instance_getattro(inst, setitem_str);
+            if (func == NULL)
+                return -1;
+
+            slice = static_cast<Box*>(createSlice(begin, end, None));
+            AUTO_DECREF(slice);
+            res = runtimeCallCapi(func, ArgPassSpec(2), slice, (Box*)value, NULL, NULL, NULL);
+        } else {
+            if (PyErr_WarnPy3k("in 3.x, __setslice__ has been removed; use __setitem__", 1) < 0) {
+                AUTO_DECREF(func);
+                return -1;
+            }
+            res = runtimeCallCapi(func, ArgPassSpec(3), begin, end, (Box*)value, NULL, NULL);
+        }
+    }
+
+    AUTO_DECREF(func);
+
+    if (slice == NULL) {
+        return -1;
+    }
+
+    if (res == NULL)
+        return -1;
+
+    AUTO_DECREF(res);
+    return 0;
+}
+
 
 /* Try a 3-way comparison, returning an int; v is an instance.  Return:
    -2 for an exception;
