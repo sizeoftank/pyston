@@ -845,8 +845,8 @@ Box* instanceSetitem(Box* _inst, Box* key, Box* value) {
 }
 
 static int instance_ass_item(Box* inst, Py_ssize_t k, PyObject* item) noexcept {
-    static BoxedString *delitem_str, *setitem_str;
-    Box* func = NULL, *res = NULL;
+    static BoxedString* delitem_str, *setitem_str;
+    Box* func = NULL, * res = NULL;
     Box* key = boxInt(k);
 
     if (item == NULL) {
@@ -858,7 +858,7 @@ static int instance_ass_item(Box* inst, Py_ssize_t k, PyObject* item) noexcept {
 
         res = runtimeCallCapi(func, ArgPassSpec(1), key, NULL, NULL, NULL, NULL);
     } else {
-        setitem_str =  getStaticString("__setitem__");
+        setitem_str = getStaticString("__setitem__");
 
         func = instance_getattro(inst, setitem_str);
         if (func == NULL)
@@ -976,8 +976,8 @@ Box* instanceDelslice(Box* _inst, Box* i, Box* j) {
 
 // Analoguous to CPython's, used for sq_slots.
 static int instance_ass_slice(Box* inst, Py_ssize_t i, Py_ssize_t j, PyObject* value) {
-    static BoxedString *delslice_str, *setslice_str, *delitem_str, *setitem_str;
-    Box* func = NULL, *res = NULL;
+    static BoxedString* delslice_str, *setslice_str, *delitem_str, *setitem_str;
+    Box* func = NULL, * res = NULL;
     Box* slice = NULL;
     Box* begin = boxInt(i);
     Box* end = boxInt(j);
@@ -1012,7 +1012,7 @@ static int instance_ass_slice(Box* inst, Py_ssize_t i, Py_ssize_t j, PyObject* v
                 return -1;
             PyErr_Clear();
 
-            setitem_str =  getStaticString("__setitem__");
+            setitem_str = getStaticString("__setitem__");
             func = instance_getattro(inst, setitem_str);
             if (func == NULL)
                 return -1;
