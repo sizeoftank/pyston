@@ -786,18 +786,17 @@ static int instance_ass_sub(Box* inst, Box* key, Box* value) noexcept {
         return -1;
     }
 
-    AUTO_DECREF(func);
-
     if (value == NULL) {
         res = runtimeCallCapi(func, ArgPassSpec(1), key, NULL, NULL, NULL, NULL);
     } else {
         res = runtimeCallCapi(func, ArgPassSpec(2), key, value, NULL, NULL, NULL);
     }
 
-    AUTO_DECREF(res);
+    Py_DECREF(func);
     if (res == NULL)
         return -1;
 
+    Py_DECREF(res);
     return 0;
 }
 
@@ -850,8 +849,6 @@ static int instance_ass_item(Box* inst, Py_ssize_t k, PyObject* item) noexcept {
     Box* func = NULL, *res = NULL;
     Box* key = boxInt(k);
 
-    AUTO_DECREF(key);
-
     if (item == NULL) {
         delitem_str = getStaticString("delitem_str");
 
@@ -870,12 +867,13 @@ static int instance_ass_item(Box* inst, Py_ssize_t k, PyObject* item) noexcept {
         res = runtimeCallCapi(func, ArgPassSpec(2), key, (Box*)item, NULL, NULL, NULL);
     }
 
-    AUTO_DECREF(func);
+    Py_DECREF(key);
+    Py_DECREF(func);
 
     if (res == NULL)
         return -1;
 
-    AUTO_DECREF(res);
+    Py_DECREF(res);
     return 0;
 }
 
@@ -984,9 +982,6 @@ static int instance_ass_slice(Box* inst, Py_ssize_t i, Py_ssize_t j, PyObject* v
     Box* begin = boxInt(i);
     Box* end = boxInt(j);
 
-    AUTO_DECREF(begin);
-    AUTO_DECREF(end);
-
     if (value == NULL) {
         delslice_str = getStaticString("__delslice__");
         func = instance_getattro(inst, delslice_str);
@@ -1001,11 +996,10 @@ static int instance_ass_slice(Box* inst, Py_ssize_t i, Py_ssize_t j, PyObject* v
                 return -1;
 
             slice = static_cast<Box*>(createSlice(begin, end, None));
-            AUTO_DECREF(slice);
             res = runtimeCallCapi(func, ArgPassSpec(1), slice, NULL, NULL, NULL, NULL);
         } else {
             if (PyErr_WarnPy3k("in 3.x, __delslice__ has been removed; use __delitem__", 1) < 0) {
-                AUTO_DECREF(func);
+                Py_DECREF(func);
                 return -1;
             }
             res = runtimeCallCapi(func, ArgPassSpec(2), begin, end, NULL, NULL, NULL);
@@ -1024,27 +1018,30 @@ static int instance_ass_slice(Box* inst, Py_ssize_t i, Py_ssize_t j, PyObject* v
                 return -1;
 
             slice = static_cast<Box*>(createSlice(begin, end, None));
-            AUTO_DECREF(slice);
             res = runtimeCallCapi(func, ArgPassSpec(2), slice, (Box*)value, NULL, NULL, NULL);
         } else {
             if (PyErr_WarnPy3k("in 3.x, __setslice__ has been removed; use __setitem__", 1) < 0) {
-                AUTO_DECREF(func);
+                Py_DECREF(func);
                 return -1;
             }
             res = runtimeCallCapi(func, ArgPassSpec(3), begin, end, (Box*)value, NULL, NULL);
         }
     }
 
-    AUTO_DECREF(func);
+    Py_DECREF(begin);
+    Py_DECREF(end);
+    Py_DECREF(func);
 
     if (slice == NULL) {
         return -1;
     }
 
+    Py_DECREF(slice);
+
     if (res == NULL)
         return -1;
 
-    AUTO_DECREF(res);
+    Py_DECREF(res);
     return 0;
 }
 
